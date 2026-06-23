@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Env
+.env
+
+# Data (raw datasets shouldn't be committed)
+data/raw/*
+data/sample/*
+!data/raw/.gitkeep
+!data/sample/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Docker
+*.log
+
+# MinIO local data
+minio/data/
+
+# IDE
+.vscode/
+.idea/

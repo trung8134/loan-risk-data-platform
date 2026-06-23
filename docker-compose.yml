@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: hc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-loan_credit}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-loan_credit}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend_simulator:
+    build:
+      context: ./backend_simulator
+    container_name: hc_backend_simulator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data:ro
+      - ./logs/backend_simulator:/app/logs
+    # Job seed 1 lần (insert toàn bộ CSV vào raw.application + raw.bureau rồi exit).
+    # Không nên tự chạy lúc "docker compose up" — chạy thủ công khi cần seed lại: docker compose run --rm backend_simulator
+    profiles: ["manual"]
+
+  minio:
+    image: minio/minio:latest
+    container_name: hc_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres_extract:
+    build:
+      context: .
+      dockerfile: extract_jobs/postgres_extract/Dockerfile
+    container_name: hc_postgres_extract
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./logs/postgres_extract:/app/logs
+    # Job batch — chạy 1 lần rồi exit. Airflow sẽ trigger định kỳ (chưa cấu hình ở bước này).
+    # Test thủ công: docker compose run --rm postgres_extract
+    profiles: ["manual"]
+
+  macro_extract:
+    build:
+      context: .
+      dockerfile: extract_jobs/macro_extract/Dockerfile
+    container_name: hc_macro_extract
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./logs/macro_extract:/app/logs
+    profiles: ["manual"]
+
+volumes:
+  pg_data:
+  minio_data:
