@@ -29,9 +29,7 @@ serving/  (FastAPI scoring endpoint)
 ```
 
 Orchestration is handled by Airflow (`airflow/dags/`), scheduling extract jobs and the
-Spark transform job. The previous CDC/Kafka/Flink streaming design (Debezium → Kafka → Flink)
-was intentionally dropped in favor of this batch ELT pattern; it may be revisited in a
-separate project.
+Spark transform job. This batch ELT pattern
 
 ## Folder Overview
 
